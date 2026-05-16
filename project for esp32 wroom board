@@ -1,0 +1,99 @@
+#include <BleGamepad.h>
+
+// Controller name
+BleGamepad bleGamepad("Player 1");
+
+// 12 buttons
+const int buttonPins[12] = {
+  4, 5, 13, 14,
+  16, 17, 18, 19,
+  21, 22, 23, 27
+};
+
+// Joystick pins
+#define JOY_LX 32
+#define JOY_LY 33
+#define JOY_RX 34
+#define JOY_RY 35
+
+// LED pins
+#define BLUETOOTH_LED 25
+#define INPUT_LED 26
+
+const int deadzone = 200;
+
+int mapAxis(int value) {
+  value -= 2048;              
+  if (abs(value) < deadzone) value = 0;
+  return map(value, -2048, 2047, -32767, 32767);
+}
+
+void setup() {
+  // Button setup
+  for (int i = 0; i < 12; i++) {
+    pinMode(buttonPins[i], INPUT_PULLUP);
+  }
+
+  // LED setup
+  pinMode(BLUETOOTH_LED, OUTPUT);
+  pinMode(INPUT_LED, OUTPUT);
+
+  digitalWrite(BLUETOOTH_LED, LOW);
+  digitalWrite(INPUT_LED, LOW);
+
+  BleGamepadConfiguration config;
+  config.setButtonCount(12);
+  config.setAutoReport(false);
+
+  bleGamepad.begin(&config);
+}
+
+void loop() {
+  // If Bluetooth is not connected
+  if (!bleGamepad.isConnected()) {
+    digitalWrite(BLUETOOTH_LED, LOW);
+    digitalWrite(INPUT_LED, LOW);
+    delay(10);
+    return;
+  }
+
+  // Bluetooth connected LED
+  digitalWrite(BLUETOOTH_LED, HIGH);
+
+  bool inputDetected = false;
+
+  // Read buttons
+  for (int i = 0; i < 12; i++) {
+    bool pressed = digitalRead(buttonPins[i]) == LOW;
+    bleGamepad.setButton(i + 1, pressed);
+
+    if (pressed) {
+      inputDetected = true;
+    }
+  }
+
+  // Read joysticks
+  int lx = mapAxis(analogRead(JOY_LX));
+  int ly = mapAxis(analogRead(JOY_LY));
+  int rx = mapAxis(analogRead(JOY_RX));
+  int ry = mapAxis(analogRead(JOY_RY));
+
+  if (lx != 0 || ly != 0 || rx != 0 || ry != 0) {
+    inputDetected = true;
+  }
+
+  bleGamepad.setX(lx);
+  bleGamepad.setY(ly);
+  bleGamepad.setZ(rx);
+  bleGamepad.setRZ(ry);
+
+  // Input LED turns on when any input is detected
+  if (inputDetected) {
+    digitalWrite(INPUT_LED, HIGH);
+  } else {
+    digitalWrite(INPUT_LED, LOW);
+  }
+
+  bleGamepad.sendReport();
+  delay(5);
+}
